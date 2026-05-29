@@ -1,0 +1,10 @@
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+akshare>=1.14.0
+efinance>=0.5.0
+pandas>=2.2.0
+numpy>=1.26.0
+openai>=1.50.0
+python-dotenv>=1.0.0
+pydantic>=2.0.0
+httpx>=0.27.0

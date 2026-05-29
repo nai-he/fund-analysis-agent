@@ -1,0 +1,122 @@
+{
+  "_note": "这是一个示例分析响应，展示完整 API 返回结构。用于无网络/无 LLM 环境下了解项目功能。实际响应数据会随市场变化而不同。",
+  "success": true,
+  "code": "161725",
+  "fund": {
+    "code": "161725",
+    "name": "招商中证白酒指数(LOF)",
+    "type": "指数型-股票",
+    "company": "招商基金",
+    "source": "akshare"
+  },
+  "fund_profile": {
+    "fund_type": "指数型-股票",
+    "fund_company": "招商基金",
+    "fund_manager": "侯昊",
+    "inception_date": "2015-05-27",
+    "fund_size": "765.44亿元",
+    "tracking_index": "中证白酒指数",
+    "purchase_status": "开放申购",
+    "redeem_status": "开放赎回",
+    "management_fee": "1.00%",
+    "custody_fee": "0.22%",
+    "risk_level": "R4",
+    "return_1y": "-8.56%",
+    "peer_ranking": "612|1249",
+    "data_quality": "good"
+  },
+  "metrics": {
+    "data_days": 120,
+    "return_1d": 0.35,
+    "return_7d_calendar": -1.23,
+    "return_30d_calendar": 5.67,
+    "return_90d_calendar": -3.45,
+    "max_drawdown": -35.2,
+    "volatility_annual": 25.1,
+    "sharpe_ratio": -0.12,
+    "calmar_ratio": -0.05,
+    "trend": "偏弱势",
+    "ma_5": 1.23,
+    "ma_10": 1.25,
+    "ma_20": 1.28,
+    "ma_60": 1.35,
+    "current_estimate": {
+      "estimated_nav": 1.198,
+      "estimated_change_pct": 0.25,
+      "source": "tencent"
+    }
+  },
+  "macro": {
+    "status": "ok",
+    "summary": "海外市场震荡，A股情绪偏谨慎",
+    "macro_summary": {
+      "risk_appetite": "neutral",
+      "overseas_direction": "mixed",
+      "forex_pressure": "moderate",
+      "commodity_disturbance": "low"
+    },
+    "risk_factors": ["美联储政策不确定性", "地缘政治风险"],
+    "global_indices": [
+      {"name": "沪深300", "change_pct": -0.5},
+      {"name": "标普500", "change_pct": 0.3}
+    ],
+    "as_of": "2025-01-15"
+  },
+  "risk": {
+    "risk_score": 58.2,
+    "risk_level": "偏高",
+    "dimensions": {
+      "trend_score": 55,
+      "drawdown_score": 45,
+      "volatility_score": 60,
+      "macro_score": 50
+    }
+  },
+  "forecast": {
+    "forecast_1d": {
+      "direction": "偏弱",
+      "probability": 0.42,
+      "confidence": "低"
+    },
+    "forecast_3d": {
+      "direction": "偏弱",
+      "probability": 0.38,
+      "confidence": "低"
+    },
+    "forecast_7d": {
+      "direction": "偏弱",
+      "probability": 0.35,
+      "confidence": "低"
+    },
+    "forecast_30d": {
+      "direction": "不确定",
+      "probability": 0.28,
+      "confidence": "低"
+    }
+  },
+  "analysis": {
+    "conclusion": "中性",
+    "summary_7d": "短期技术面偏弱，均线空头排列，建议观望",
+    "summary_30d": "中期受白酒板块拖累，关注消费复苏节奏",
+    "summary_90d": "长期指数基金适合定投策略，短期择时难度大",
+    "risk_explanation": "波动率处于历史中高位，最大回撤超过35%，风险偏好较低者需谨慎",
+    "position_advice": "无持仓信息，不提供具体操作建议",
+    "main_risks": ["白酒板块持续调整", "消费复苏不及预期"],
+    "watch_points": ["关注60日均线突破", "关注季报业绩"],
+    "buy_conditions": ["回调至前低支撑位且放量企稳"],
+    "reduce_conditions": ["跌破60日均线且放量"],
+    "confidence": "中",
+    "data_basis": "基于120天历史数据",
+    "disclaimer": "以上分析不构成投资建议，基金投资有风险，过往业绩不预示未来表现"
+  },
+  "datasource_status": {
+    "akshare": {"available": true, "detail": "ok"},
+    "efinance": {"available": true, "detail": "ok"},
+    "tencent": {"available": true, "detail": "ok"}
+  },
+  "backtest_summary": {
+    "7d_directional_accuracy": "约17-31%（取决于市场阶段）",
+    "probability_quality": "low",
+    "_note": "回测显示短期方向预测困难，概率估计应视为低置信度参考"
+  }
+}

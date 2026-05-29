@@ -1,0 +1,55 @@
+# Dependencies
+frontend/node_modules/
+frontend/dist/
+backend/__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+
+# Environment
+.env
+backend/.env
+*.env.local
+
+# Logs & temp
+*.log
+*.out
+*.err
+*.tmp
+*.bad
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Build
+frontend/dist/
+*.egg-info/
+
+# Backend temp files
+backend/user_funds.json
+backend/user_funds.json.tmp
+backend/user_funds.json.bad
+
+# Third-party source copies (not part of this project)
+akshare-main/
+efinance-main/
+claude-trading-skills-main/
+finance-skills-main/
+skills-main/
+akshare-fund/
+
+# Vite
+frontend/.vite/
+**/.vite/
+
+# Claude Code config
+.claude/
+**/.claude/
+
+# VS Code settings
+.vscode/settings.json
