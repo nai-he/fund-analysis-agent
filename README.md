@@ -216,13 +216,21 @@ LLM 分析为可选模块。不配置 `LLM_API_KEY` 时：
 
 ## 项目截图
 
-以下为本项目的主要功能界面截图位置（可在本地启动后补充）：
+### 单只基金分析 — 初始状态
 
-- 单只基金分析页：`http://localhost:3000` → "单只分析" 标签页
-- 我的组合页：`http://localhost:3000` → "我的组合" 标签页
-- 宏观一览页：`http://localhost:3000` → "宏观一览" 标签页
+![单只基金分析-初始](docs/screenshots/01-analyze-initial.png)
 
-> 截图可在本地启动前端后补充至 `docs/screenshots/` 目录。
+### 单只基金分析 — 分析结果（161725 招商白酒）
+
+![单只基金分析-结果](docs/screenshots/02-analyze-result.png)
+
+### 我的组合
+
+![我的组合](docs/screenshots/03-portfolio.png)
+
+### 宏观一览
+
+![宏观一览](docs/screenshots/04-macro-dashboard.png)
 
 ## 未来可改进方向
 
