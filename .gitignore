@@ -6,6 +6,10 @@ backend/__pycache__/
 *.pyc
 *.pyo
 
+# Virtual environments
+backend/venv/
+venv/
+
 # Environment
 .env
 backend/.env
