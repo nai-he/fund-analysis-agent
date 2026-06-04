@@ -56,3 +56,9 @@ frontend/.vite/
 
 # Large downloads
 downloads/
+
+# Temporary and task files
+CLAUDE_*.txt
+novel-ai-skills/
+temp_docx_extract/
+*.docx
