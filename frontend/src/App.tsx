@@ -17,7 +17,8 @@ export default function App() {
   const [position, setPosition] = useState<PositionInput>({
     cost_nav: '', holding_amount: '', holding_units: '',
     is_dca: false, monthly_dca_amount: '',
-    max_loss_percent: '15', holding_horizon: '1年以上', risk_preference: '平衡'
+    max_loss_percent: '15', holding_horizon: '1年以上', risk_preference: '平衡',
+    planned_buy_amount: '',
   })
 
   // 我的基金
@@ -56,11 +57,14 @@ export default function App() {
     setError(null)
     setResult(null)
 
-    const hasPosition = showPosition && (position.cost_nav || position.holding_amount)
+    const hasDecisionInput = showPosition
+
+    const controller = new AbortController()
+    const timer = window.setTimeout(() => controller.abort(), 120000)
 
     try {
       let resp: Response
-      if (hasPosition) {
+      if (hasDecisionInput) {
         resp = await fetch('/api/analyze', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -75,11 +79,13 @@ export default function App() {
               max_loss_percent: position.max_loss_percent ? parseFloat(position.max_loss_percent) : undefined,
               holding_horizon: position.holding_horizon || undefined,
               risk_preference: position.risk_preference || undefined,
+              planned_buy_amount: position.planned_buy_amount ? parseFloat(position.planned_buy_amount) : undefined,
             },
           }),
+          signal: controller.signal,
         })
       } else {
-        resp = await fetch(`/api/analyze?code=${encodeURIComponent(trimmed)}`)
+        resp = await fetch(`/api/analyze?code=${encodeURIComponent(trimmed)}`, { signal: controller.signal })
       }
       const data: AnalyzeResult = await resp.json()
       if (!resp.ok) {
@@ -89,8 +95,13 @@ export default function App() {
         if (!data.success) setError(data.error || '分析失败')
       }
     } catch (e) {
-      setError(`网络请求失败：${e instanceof Error ? e.message : '未知错误'}。请确认后端服务已启动。`)
+      setError(
+        e instanceof DOMException && e.name === 'AbortError'
+          ? '分析请求超时，请稍后重试'
+          : `网络请求失败：${e instanceof Error ? e.message : '未知错误'}。请确认后端服务已启动。`
+      )
     } finally {
+      window.clearTimeout(timer)
       setLoading(false)
     }
   }
@@ -103,13 +114,18 @@ export default function App() {
 
   const loadMyFunds = async () => {
     setMyFundsLoading(true)
+    const controller = new AbortController()
+    const timer = window.setTimeout(() => controller.abort(), 15000)
     try {
-      const resp = await fetch('/api/my-funds')
+      const resp = await fetch('/api/my-funds', { signal: controller.signal })
       const data = await resp.json()
       setMyFunds(data.funds || [])
     } catch (e) {
-      console.error('加载我的基金失败', e)
+      if (!(e instanceof DOMException && e.name === 'AbortError')) {
+        console.error('加载我的基金失败', e)
+      }
     } finally {
+      window.clearTimeout(timer)
       setMyFundsLoading(false)
     }
   }
@@ -122,11 +138,14 @@ export default function App() {
     }
     setAddFundError('')
     setMyFundsLoading(true)
+    const controller = new AbortController()
+    const timer = window.setTimeout(() => controller.abort(), 15000)
     try {
       const resp = await fetch('/api/my-funds', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code: trimmed }),
+        signal: controller.signal,
       })
       if (resp.ok) {
         setNewFundCode('')
@@ -137,24 +156,34 @@ export default function App() {
         setAddFundError(data.detail || `请求失败 (${resp.status})`)
       }
     } catch (e) {
-      console.error('添加基金失败', e)
-      setAddFundError('网络错误，请检查后端服务是否运行')
+      if (e instanceof DOMException && e.name === 'AbortError') {
+        setAddFundError('请求超时，请稍后重试')
+      } else {
+        console.error('添加基金失败', e)
+        setAddFundError('网络错误，请检查后端服务是否运行')
+      }
     } finally {
+      window.clearTimeout(timer)
       setMyFundsLoading(false)
     }
   }
 
   const deleteFund = async (code: string) => {
     setMyFundsLoading(true)
+    const controller = new AbortController()
+    const timer = window.setTimeout(() => controller.abort(), 15000)
     try {
-      await fetch(`/api/my-funds/${code}`, { method: 'DELETE' })
+      await fetch(`/api/my-funds/${code}`, { method: 'DELETE', signal: controller.signal })
       await loadMyFunds()
       setBatchResults(prev => prev.filter(r => r.code !== code))
       showToast(`基金 ${code} 已删除`, 'success')
     } catch (e) {
-      console.error('删除基金失败', e)
-      showToast('删除失败，请检查网络', 'error')
+      if (!(e instanceof DOMException && e.name === 'AbortError')) {
+        console.error('删除基金失败', e)
+        showToast('删除失败，请检查网络', 'error')
+      }
     } finally {
+      window.clearTimeout(timer)
       setMyFundsLoading(false)
     }
   }
@@ -189,11 +218,14 @@ export default function App() {
       note: editForm.note || undefined,
     }
     setMyFundsLoading(true)
+    const controller = new AbortController()
+    const timer = window.setTimeout(() => controller.abort(), 15000)
     try {
       const resp = await fetch('/api/my-funds', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updated),
+        signal: controller.signal,
       })
       if (resp.ok) {
         setEditingFund(null)
@@ -201,8 +233,11 @@ export default function App() {
         showToast(`基金 ${editingFund.code} 已更新`, 'success')
       }
     } catch (e) {
-      console.error('更新基金失败', e)
+      if (!(e instanceof DOMException && e.name === 'AbortError')) {
+        console.error('更新基金失败', e)
+      }
     } finally {
+      window.clearTimeout(timer)
       setMyFundsLoading(false)
     }
   }
@@ -211,13 +246,21 @@ export default function App() {
     if (myFunds.length === 0) return
     setBatchLoading(true)
     setBatchResults([])
+    const controller = new AbortController()
+    const timer = window.setTimeout(() => controller.abort(), 120000)
     try {
-      const resp = await fetch('/api/my-funds/analyze', { method: 'POST' })
+      const resp = await fetch('/api/my-funds/analyze', {
+        method: 'POST',
+        signal: controller.signal,
+      })
       const data = await resp.json()
       setBatchResults(data.results || [])
     } catch (e) {
-      console.error('批量分析失败', e)
+      if (!(e instanceof DOMException && e.name === 'AbortError')) {
+        console.error('批量分析失败', e)
+      }
     } finally {
+      window.clearTimeout(timer)
       setBatchLoading(false)
     }
   }

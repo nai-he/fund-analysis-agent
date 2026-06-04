@@ -1,0 +1,116 @@
+你现在在 E:\agentlearn\gold 项目中执行粗活优化。请严格按下面任务做，不要重构核心预测算法。
+
+背景目标：
+这个项目的核心不是复杂量化平台，而是“输入基金代码 -> 快速给出涨跌预测和持仓去留参考”。用户希望结果比直接问 AI 更有依据，因为项目会读取基金历史净值、技术指标、回测验证、风险评分和个人持仓。
+
+重要约束：
+1. 不要承诺“高准确率”“稳赚”“一定涨跌”。
+2. 不要把页面做得更复杂。目标是更直接、更好懂。
+3. 不要修改 backend/prediction_engine.py 的核心算法逻辑。
+4. 不要修改 scripts/capture_screenshots.py。
+5. 不要使用“建议买入”这种强投资建议措辞。统一使用“参考”“倾向”“可考虑”“观察”“降低仓位”等。
+6. npm run build 可能因为 frontend/dist/assets 文件被 Windows 锁住失败。请诚实报告状态，不要说全部 PASS，除非真的构建完成。
+
+任务 A：新增一个“最终结论”聚合层
+后端新增 backend/final_decision.py，提供函数：
+
+build_final_decision(fund, risk, forecast, prediction, decision_advice, position=None) -> dict
+
+返回结构建议：
+{
+  "headline": "当前偏观察，不适合追买",
+  "direction": "up" | "down" | "neutral" | "uncertain",
+  "direction_label": "偏涨" | "偏跌" | "震荡" | "不确定",
+  "action": "buy_watch" | "hold" | "reduce" | "avoid" | "observe",
+  "action_label": "可小额关注" | "继续持有" | "降低仓位" | "暂不参与" | "观察",
+  "confidence": "高" | "中" | "低",
+  "up_probability_7d": number | null,
+  "up_probability_30d": number | null,
+  "risk_score": number | null,
+  "why": string[],
+  "watch": string[],
+  "warning": string[],
+  "disclaimer": "仅供个人研究参考，不构成投资建议。"
+}
+
+聚合规则要保守、简单：
+- 如果 prediction 7d/30d 都是低置信或 has_positive_edge 为 false：direction = "uncertain"，confidence 最多“低”，why 加“历史验证未显示稳定预测优势”。
+- 如果 7d 和 30d 都偏涨，且至少一个 confidence 为“中”或“高”，risk_score < 60：direction = "up"。
+- 如果 7d 或 30d 偏不涨/偏跌，且 risk_score >= 60：direction = "down" 或 "uncertain"，action 偏 observe/reduce。
+- 如果有持仓 position，且 risk_score >= 70：action 至少 reduce/observe，不要输出积极买入。
+- 如果没有持仓，且风险高或预测无优势：action = observe 或 avoid。
+- headline 必须是一句话，直接说结论，不超过 25 个汉字。
+
+任务 B：接入 API
+在 backend/main.py：
+- import build_final_decision
+- 在 decision_advice 之后调用 final_decision = build_final_decision(...)
+- AnalyzeResponse 和 BatchFundResult 都返回 final_decision
+- 批量分析结果也带 final_decision
+
+在 backend/schemas.py：
+- AnalyzeResponse 增加 final_decision: Optional[dict] = None
+- BatchFundResult 增加 final_decision: Optional[dict] = None
+
+任务 C：前端类型与展示
+在 frontend/src/types.ts：
+- 增加 FinalDecision 类型
+- AnalyzeResult 和 BatchFundResult 增加 final_decision?: FinalDecision
+
+在 frontend/src/components/AnalyzeView.tsx：
+- 在基金标题卡下面、复杂预测卡片之前，展示一个“最终参考结论”卡片。
+- 卡片只展示：
+  1. headline
+  2. direction_label + action_label + confidence
+  3. 7天上涨概率、30天上涨概率、风险分
+  4. why 前 3 条
+  5. warning 前 2 条
+- 不要把回测细节堆在这里。
+
+在 frontend/src/components/PortfolioComponents.tsx：
+- 批量基金卡片里优先展示 final_decision.action_label 和 final_decision.direction_label。
+- 如果没有 final_decision，再 fallback 到原来的 forecast/decision_support。
+
+在 frontend/src/App.css：
+- 给最终结论卡片加简洁样式，不能太花。
+- 名称建议：
+  .final-decision-card
+  .final-decision-headline
+  .final-decision-meta
+  .final-decision-stats
+  .final-decision-list
+  .final-decision-warning
+
+任务 D：测试
+新增 backend/test_final_decision.py，至少覆盖：
+1. 预测无优势时，direction 是 uncertain，confidence 是低。
+2. 7d 和 30d 都偏涨、风险低时，direction 是 up。
+3. 风险高且已有持仓时，action 不能是 buy_watch。
+4. 输出必须有 headline、why、warning、disclaimer。
+
+更新已有 API smoke 测试或新增测试，确认 /api/analyze 返回 final_decision。
+
+任务 E：验证命令
+请运行：
+cd E:\agentlearn\gold\backend
+python -m py_compile main.py schemas.py decision_advisor.py prediction_engine.py final_decision.py
+python -m unittest test_final_decision -v
+python -m unittest test_prediction_engine test_decision_advisor -v
+python -m unittest test_my_funds -v
+
+cd E:\agentlearn\gold\frontend
+npx tsc --noEmit
+npm run build
+
+最终报告必须诚实：
+- 如果 npm run build 因 dist/assets 文件锁 EPERM 失败，明确写“TypeScript 通过，但生产构建因 Windows 文件锁失败”，不要写全部 PASS。
+- 报告修改了哪些文件。
+- 报告 scripts/capture_screenshots.py 是否仍然无 diff。
+
+注意：
+这次粗活的目标是让用户一眼看到：
+“这只基金未来偏涨/偏跌/不确定”
+“我该继续拿、观察、降低仓位，还是暂不参与”
+“为什么”
+
+不要把核心预测算法改得更激进。

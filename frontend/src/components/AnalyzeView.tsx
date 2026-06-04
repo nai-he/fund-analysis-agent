@@ -2,6 +2,7 @@ import type { AnalyzeResult, PositionInput, TabKey, SectionKey } from '../types'
 import { fmtVal, fmtNum, conclusionColor, riskColor, profileLabel } from '../utils/format'
 import { MetricItem, RiskScoreBar, PeriodRange, FormField } from './common'
 import { ForecastBlock } from './ForecastBlock'
+import { PredictionCard } from './PredictionCard'
 
 interface AnalyzeViewProps {
   code: string
@@ -35,7 +36,11 @@ export function AnalyzeView({
   const macro = result?.macro
   const risk = result?.risk
   const forecast = result?.forecast
+  const prediction = result?.prediction
   const analysis = result?.analysis
+  const decision_advice = result?.decision_advice
+  const final_decision = result?.final_decision
+  const high_confidence_decision = result?.high_confidence_decision
 
   return (
     <div className="tab-fade-in">
@@ -70,6 +75,7 @@ export function AnalyzeView({
           <FormField label="持仓成本价" value={position.cost_nav} onChange={(v) => setPosition({ ...position, cost_nav: v })} placeholder="如 0.75" />
           <FormField label="持有金额（元）" value={position.holding_amount} onChange={(v) => setPosition({ ...position, holding_amount: v })} placeholder="如 10000" />
           <FormField label="持有份额（份）" value={position.holding_units} onChange={(v) => setPosition({ ...position, holding_units: v })} placeholder="如 13000" />
+          <FormField label="计划买入金额（元）" value={position.planned_buy_amount} onChange={(v) => setPosition({ ...position, planned_buy_amount: v })} placeholder="如 5000（选填）" />
           <FormField label="每月定投金额" value={position.monthly_dca_amount} onChange={(v) => setPosition({ ...position, monthly_dca_amount: v })} placeholder="如 1000" />
           <FormField label="最大可承受亏损%" value={position.max_loss_percent} onChange={(v) => setPosition({ ...position, max_loss_percent: v })} placeholder="如 15" />
           <div className="form-group">
@@ -178,6 +184,196 @@ export function AnalyzeView({
           {analysis.note && <p className="note-text">{analysis.note}</p>}
         </div>
 
+        {/* 最终参考结论 */}
+        {final_decision && (
+          <div className="card final-decision-card">
+            <div className="final-decision-topline">
+              <span className="final-decision-kicker">最终参考结论</span>
+              <h3 className="final-decision-headline">{final_decision.headline || '暂无结论'}</h3>
+            </div>
+            <div className="final-decision-meta">
+              <span className={`decision-action-value decision-action-${final_decision.action}`}>
+                {final_decision.action_label || '观察'}
+              </span>
+              <span className={`decision-confidence confidence-${final_decision.confidence === '高' ? 'high' : final_decision.confidence === '低' ? 'low' : 'medium'}`}>
+                置信度：{final_decision.confidence || '中'}
+              </span>
+              <span className="final-decision-direction" style={{
+                color: final_decision.direction === 'up' ? '#16a34a' :
+                       final_decision.direction === 'down' ? '#dc2626' :
+                       final_decision.direction === 'neutral' ? '#f59e0b' : '#6b7280'
+              }}>
+                {final_decision.direction_label || '不确定'}
+              </span>
+            </div>
+            {final_decision.summary && (
+              <p className="final-decision-summary">{final_decision.summary}</p>
+            )}
+            <div className="final-decision-stats">
+              {final_decision.up_probability_7d != null && (
+                <span>7天上涨概率 <strong>{final_decision.up_probability_7d}%</strong></span>
+              )}
+              {final_decision.up_probability_30d != null && (
+                <span>30天上涨概率 <strong>{final_decision.up_probability_30d}%</strong></span>
+              )}
+              {final_decision.risk_score != null && (
+                <span>风险分 <strong style={{ color: riskColor(final_decision.risk_score) }}>{final_decision.risk_score}</strong></span>
+              )}
+            </div>
+            {final_decision.why && final_decision.why.length > 0 && (
+              <ul className="final-decision-list">
+                {final_decision.why.slice(0, 2).map((r: string, i: number) => <li key={i}>{r}</li>)}
+              </ul>
+            )}
+            {final_decision.warning && final_decision.warning.length > 0 && (
+              <div className="final-decision-warning">
+                {final_decision.warning.slice(0, 1).map((w: string, i: number) => (
+                  <p key={i}>⚠ {w}</p>
+                ))}
+              </div>
+            )}
+            <p className="decision-disclaimer">{final_decision.disclaimer || '仅供个人研究参考，不构成投资建议。'}</p>
+          </div>
+        )}
+
+        {/* 高置信度小资金决策 */}
+        {high_confidence_decision && (
+          <div className={`card high-confidence-card high-confidence-${high_confidence_decision.action}`}>
+            <h3 className="high-confidence-title">小额资金决策</h3>
+            <p className="high-confidence-hint">"小资金、高胜率优先、少出手" — 默认等待，仅在所有硬条件同时满足时才考虑小额试探。</p>
+
+            <div className="high-confidence-main">
+              <div className="high-confidence-action-row">
+                <span className="high-confidence-action-label">操作建议</span>
+                <span className={`high-confidence-action-value hc-action-${high_confidence_decision.action}`}>
+                  {high_confidence_decision.action_label}
+                </span>
+                <span className={`decision-confidence confidence-${high_confidence_decision.confidence === 'high' ? 'high' : high_confidence_decision.confidence === 'low' ? 'low' : 'medium'}`}>
+                  置信度：{high_confidence_decision.confidence === 'high' ? '高' : high_confidence_decision.confidence === 'medium' ? '中' : '低'}
+                </span>
+              </div>
+
+              <div className="high-confidence-stats">
+                <span>综合评分 <strong>{high_confidence_decision.score}</strong></span>
+                {high_confidence_decision.max_position_pct > 0 && (
+                  <span>最大仓位 <strong>{high_confidence_decision.max_position_pct}%</strong></span>
+                )}
+              </div>
+            </div>
+
+            {high_confidence_decision.reasons.length > 0 && (
+              <div className="high-confidence-section">
+                <h4 className="high-confidence-section-title" style={{ color: '#16a34a' }}>通过的条件</h4>
+                <ul className="high-confidence-list hc-passed">
+                  {high_confidence_decision.reasons.slice(0, 3).map((r, i) => <li key={i}>{r}</li>)}
+                </ul>
+              </div>
+            )}
+
+            {high_confidence_decision.blockers.length > 0 && (
+              <div className="high-confidence-section">
+                <h4 className="high-confidence-section-title" style={{ color: '#dc2626' }}>未通过的条件</h4>
+                <ul className="high-confidence-list hc-blocked">
+                  {high_confidence_decision.blockers.slice(0, 3).map((b, i) => <li key={i}>{b}</li>)}
+                </ul>
+              </div>
+            )}
+
+            {high_confidence_decision.risk_controls.length > 0 && (
+              <div className="high-confidence-section">
+                <h4 className="high-confidence-section-title" style={{ color: '#f59e0b' }}>风险控制规则</h4>
+                <ul className="high-confidence-list hc-controls">
+                  {high_confidence_decision.risk_controls.map((c, i) => <li key={i}>{c}</li>)}
+                </ul>
+              </div>
+            )}
+
+            <p className="decision-disclaimer">{high_confidence_decision.disclaimer}</p>
+          </div>
+        )}
+
+        {/* 买卖辅助判断 */}
+            {decision_advice && (
+          <div className="card decision-card">
+            <h3 className="decision-title">操作参考</h3>
+            <p className="decision-hint">以下为规则引擎生成的保守决策参考，不构成投资建议。</p>
+
+            <div className="decision-main">
+              <div className="decision-action-row">
+                <span className="decision-action-label">操作倾向</span>
+                <span className={`decision-action-value decision-action-${decision_advice.action}`}>
+                  {decision_advice.action_label || '观望'}
+                </span>
+                <span className={`decision-confidence confidence-${decision_advice.confidence === '高' ? 'high' : decision_advice.confidence === '低' ? 'low' : 'medium'}`}>
+                  置信度：{decision_advice.confidence || '中'}
+                </span>
+              </div>
+
+              {decision_advice.summary && (
+                <p className="decision-summary">{decision_advice.summary}</p>
+              )}
+
+              {(decision_advice.suggested_buy_amount != null && decision_advice.suggested_buy_amount > 0) && (
+                <p className="decision-buy-amount">
+                  本次参考执行金额：{decision_advice.suggested_buy_amount} 元
+                  {decision_advice.suggested_buy_pct != null && `（按规则折算，计划金额的 ${decision_advice.suggested_buy_pct}%）`}
+                </p>
+              )}
+
+              {decision_advice.position_hint && (
+                <p className="decision-position-hint">{decision_advice.position_hint}</p>
+              )}
+            </div>
+
+            {decision_advice.reasons && decision_advice.reasons.length > 0 && (
+              <div className="decision-section">
+                <h4 className="decision-section-title">判断依据</h4>
+                <ul className="decision-list">
+                  {decision_advice.reasons.slice(0, 3).map((r: string, i: number) => <li key={i}>{r}</li>)}
+                </ul>
+              </div>
+            )}
+
+            {decision_advice.risk_warnings && decision_advice.risk_warnings.length > 0 && (
+              <div className="decision-section">
+                <h4 className="decision-section-title" style={{ color: '#dc2626' }}>风险提示</h4>
+                <ul className="decision-list decision-list-warn">
+                  {decision_advice.risk_warnings.slice(0, 3).map((w: string, i: number) => <li key={i}>{w}</li>)}
+                </ul>
+              </div>
+            )}
+
+            {decision_advice.buy_conditions && decision_advice.buy_conditions.length > 0 && (
+              <div className="decision-section">
+                <h4 className="decision-section-title" style={{ color: '#16a34a' }}>买入关注条件</h4>
+                <ul className="decision-list decision-list-buy">
+                  {decision_advice.buy_conditions.slice(0, 3).map((c: string, i: number) => <li key={i}>{c}</li>)}
+                </ul>
+              </div>
+            )}
+
+            {decision_advice.sell_or_reduce_conditions && decision_advice.sell_or_reduce_conditions.length > 0 && (
+              <div className="decision-section">
+                <h4 className="decision-section-title" style={{ color: '#dc2626' }}>减仓/止损条件</h4>
+                <ul className="decision-list decision-list-sell">
+                  {decision_advice.sell_or_reduce_conditions.slice(0, 3).map((c: string, i: number) => <li key={i}>{c}</li>)}
+                </ul>
+              </div>
+            )}
+
+            {decision_advice.invalidation_signals && decision_advice.invalidation_signals.length > 0 && (
+              <div className="decision-section">
+                <h4 className="decision-section-title" style={{ color: '#f59e0b' }}>判断失效信号</h4>
+                <ul className="decision-list decision-list-invalid">
+                  {decision_advice.invalidation_signals.slice(0, 3).map((s: string, i: number) => <li key={i}>{s}</li>)}
+                </ul>
+              </div>
+            )}
+
+            <p className="decision-disclaimer">{decision_advice.disclaimer || '仅供个人研究参考，不构成投资建议。'}</p>
+          </div>
+        )}
+
         {/* 三周期时间轴 */}
         <div className="card period-card">
           <div className="period-tabs">
@@ -229,6 +425,8 @@ export function AnalyzeView({
             </div>
           )}
         </div>
+
+        <PredictionCard prediction={prediction} />
 
         {/* 未来走势情景判断 */}
         {forecast && (
@@ -564,7 +762,7 @@ export function AnalyzeView({
           </button>
           {showRaw && (
             <div className="card raw-card">
-              <pre className="raw-json">{JSON.stringify({ fund, fund_profile: profile, metrics, macro, risk, forecast, analysis, datasource_status: result.datasource_status }, null, 2)}</pre>
+              <pre className="raw-json">{JSON.stringify({ fund, fund_profile: profile, metrics, macro, risk, forecast, prediction, analysis, decision_advice, datasource_status: result.datasource_status }, null, 2)}</pre>
             </div>
           )}
         </div>

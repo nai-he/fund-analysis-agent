@@ -22,6 +22,62 @@ Base URL: `http://127.0.0.1:8000`
 
 ---
 
+## GET /api/macro
+
+获取宏观一览数据（全球指数、汇率、商品、SHIBOR）。
+
+轻量接口，不依赖基金代码，不运行完整分析流程。
+
+**无请求参数。**
+
+**响应示例：**
+
+```json
+{
+  "success": true,
+  "macro": {
+    "status": "ok",
+    "summary": "海外市场风险偏好上升，美元走强对人民币资产形成扰动，国内流动性环境保持宽松...",
+    "macro_summary": {
+      "risk_appetite": "risk-on",
+      "overseas_direction": "bullish",
+      "forex_pressure": "有一定贬值压力",
+      "commodity_disturbance": "黄金上涨",
+      "liquidity": "loose"
+    },
+    "risk_factors": [
+      "美元指数走强，人民币贬值压力上升",
+      "原油价格上涨，输入性通胀风险"
+    ],
+    "global_indices": [
+      { "name": "纳斯达克", "latest": 18500.50, "change_pct": 1.23, "source": "akshare", "as_of": "2025-01-15" }
+    ],
+    "forex": [
+      { "name": "美元/人民币", "latest": 7.25, "source": "akshare", "as_of": "2025-01-15" }
+    ],
+    "commodities": [
+      { "name": "黄金(SGE)", "latest": 480.50, "source": "akshare", "as_of": "2025-01-15" }
+    ],
+    "interbank_rates": [
+      { "name": "SHIBOR隔夜", "latest": 1.45, "change": -5, "source": "akshare", "as_of": "2025-01-15" }
+    ],
+    "as_of": "2025-01-15"
+  }
+}
+```
+
+**错误响应：**
+
+```json
+{
+  "success": false,
+  "macro": null,
+  "error": "宏观数据获取失败：AKShare 连接超时"
+}
+```
+
+---
+
 ## GET /api/analyze
 
 分析单只基金（无持仓信息）。
@@ -72,6 +128,23 @@ GET /api/analyze?code=161725
     "forecast_1d": { "direction": "偏弱" },
     "forecast_7d": { "direction": "偏弱" },
     "forecast_30d": { "direction": "不确定" }
+  },
+  "prediction": {
+    "status": "ok",
+    "quality": "low",
+    "summary": "当前没有发现稳定跑赢简单基线的上涨预测优势，应主要作为低置信参考。",
+    "periods": {
+      "7d": {
+        "predicted_direction": "uncertain",
+        "direction_label": "不确定",
+        "up_probability": 48.6,
+        "down_or_flat_probability": 51.4,
+        "historical_hit_rate": 52.38,
+        "baseline_hit_rate": 55.24,
+        "edge_vs_baseline": -2.86,
+        "confidence": "低"
+      }
+    }
   },
   "analysis": {
     "conclusion": "中性",

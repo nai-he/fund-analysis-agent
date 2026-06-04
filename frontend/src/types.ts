@@ -239,10 +239,138 @@ export interface Forecast {
   decision_support?: DecisionSupport
 }
 
+export interface PredictionPeriod {
+  period_days?: number
+  predicted_direction?: 'up' | 'down_or_flat' | 'uncertain' | string
+  direction_label?: string
+  up_probability?: number
+  down_or_flat_probability?: number
+  confidence?: string
+  current_score?: number
+  sample_size?: number
+  historical_hit_rate?: number | null
+  baseline_hit_rate?: number | null
+  edge_vs_baseline?: number | null
+  has_positive_edge?: boolean
+  signal_probability?: number | null
+  selective_threshold?: number | null
+  selective_hit_rate?: number | null
+  selective_signal_count?: number | null
+  selective_coverage_pct?: number | null
+  selective_edge_vs_baseline?: number | null
+  current_passes_selective_threshold?: boolean
+  selective_signal_valid?: boolean
+  selective_target_hit_rate?: number | null
+  selective_min_required_signals?: number | null
+  selective_rule_text?: string | null
+  selective_rule?: Record<string, number>
+  selective_avg_return?: number | null
+  selective_median_return?: number | null
+  selective_worst_return?: number | null
+  selective_profit_factor?: number | null
+  selective_hit_rate_lower_bound?: number | null
+  selective_train_hit_rate?: number | null
+  selective_train_signal_count?: number | null
+  selective_train_passed?: boolean
+  selective_validation_hit_rate?: number | null
+  selective_validation_signal_count?: number | null
+  selective_validation_avg_return?: number | null
+  selective_validation_passed?: boolean
+  selective_cv_evaluable_folds?: number | null
+  selective_cv_passed_folds?: number | null
+  selective_cv_pass_rate?: number | null
+  selective_cv_min_hit_rate?: number | null
+  selective_cv_avg_return?: number | null
+  selective_cv_passed?: boolean
+  selective_training_status?: string | null
+  brier_score?: number | null
+  actual_up_rate?: number | null
+  baseline_detail?: {
+    majority_class_hit_rate?: number
+    simple_momentum_hit_rate?: number
+  }
+  calibration_note?: string
+  main_reasons?: string[]
+  warning?: string | null
+}
+
+export interface PredictionResult {
+  status?: string
+  model_basis?: string
+  quality?: string
+  sample_size?: number
+  usable_period_count?: number
+  specific_training?: {
+    enabled?: boolean
+    fund_code?: string | null
+    fund_name?: string | null
+    target_hit_rate?: number | null
+    min_edge?: number | null
+    factor_status?: string
+    factor_sources?: Array<{
+      type?: string
+      name?: string
+      quarter?: string
+      stock_count?: number
+      holdings?: string[]
+    }>
+    factor_note?: string
+    note?: string
+  }
+  summary?: string
+  periods?: Record<string, PredictionPeriod>
+  disclaimer?: string
+}
+
 export interface DatasourceStatus {
   akshare?: { available: boolean; detail: string }
   efinance?: { available: boolean; detail: string }
   tencent?: { available: boolean; detail: string }
+}
+
+export interface FinalDecision {
+  headline?: string
+  direction?: 'up' | 'down' | 'neutral' | 'uncertain'
+  direction_label?: string
+  action?: 'buy_watch' | 'hold' | 'reduce' | 'avoid' | 'observe'
+  action_label?: string
+  confidence?: string
+  up_probability_7d?: number | null
+  up_probability_30d?: number | null
+  risk_score?: number | null
+  why?: string[]
+  watch?: string[]
+  warning?: string[]
+  disclaimer?: string
+  summary?: string
+}
+
+export interface DecisionAdvice {
+  action?: string
+  action_label?: string
+  confidence?: string
+  suggested_buy_amount?: number | null
+  suggested_buy_pct?: number | null
+  position_hint?: string
+  summary?: string
+  reasons?: string[]
+  risk_warnings?: string[]
+  buy_conditions?: string[]
+  sell_or_reduce_conditions?: string[]
+  invalidation_signals?: string[]
+  disclaimer?: string
+}
+
+export interface HighConfidenceDecision {
+  action: 'wait' | 'avoid' | 'small_buy'
+  action_label: string
+  confidence: 'low' | 'medium' | 'high'
+  score: number
+  max_position_pct: number
+  reasons: string[]
+  blockers: string[]
+  risk_controls: string[]
+  disclaimer: string
 }
 
 export interface AnalyzeResult {
@@ -254,8 +382,18 @@ export interface AnalyzeResult {
   macro?: Macro
   risk?: Risk
   forecast?: Forecast
+  prediction?: PredictionResult
   analysis?: Analysis
   datasource_status?: DatasourceStatus
+  decision_advice?: DecisionAdvice
+  final_decision?: FinalDecision
+  high_confidence_decision?: HighConfidenceDecision
+  error?: string
+}
+
+export interface MacroResponse {
+  success: boolean
+  macro?: Macro | null
   error?: string
 }
 
@@ -268,6 +406,7 @@ export interface PositionInput {
   max_loss_percent: string
   holding_horizon: string
   risk_preference: string
+  planned_buy_amount: string
 }
 
 export interface UserFundItem {
@@ -293,8 +432,12 @@ export interface BatchFundResult {
   macro?: Macro
   risk?: Risk
   forecast?: Forecast
+  prediction?: PredictionResult
   analysis?: Analysis
   datasource_status?: DatasourceStatus
+  decision_advice?: DecisionAdvice
+  final_decision?: FinalDecision
+  high_confidence_decision?: HighConfidenceDecision
 }
 
 export type TabKey = '7d' | '30d' | '90d'

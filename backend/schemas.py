@@ -12,6 +12,7 @@ class PositionInput(BaseModel):
     max_loss_percent: Optional[float] = None
     holding_horizon: Optional[str] = None
     risk_preference: Optional[str] = None
+    planned_buy_amount: Optional[float] = None
 
 
 class AnalyzeRequest(BaseModel):
@@ -28,8 +29,12 @@ class AnalyzeResponse(BaseModel):
     macro: Optional[dict] = None
     risk: Optional[dict] = None
     forecast: Optional[dict] = None
+    prediction: Optional[dict] = None
     analysis: Optional[dict] = None
     datasource_status: Optional[dict] = None
+    decision_advice: Optional[dict] = None
+    final_decision: Optional[dict] = None
+    high_confidence_decision: Optional[dict] = None
     error: Optional[str] = None
 
 
@@ -69,8 +74,18 @@ class BatchFundResult(BaseModel):
     macro: Optional[dict] = None
     risk: Optional[dict] = None
     forecast: Optional[dict] = None
+    prediction: Optional[dict] = None
     analysis: Optional[dict] = None
     datasource_status: Optional[dict] = None
+    decision_advice: Optional[dict] = None
+    final_decision: Optional[dict] = None
+    high_confidence_decision: Optional[dict] = None
+
+
+class MacroResponse(BaseModel):
+    success: bool
+    macro: Optional[dict] = None
+    error: Optional[str] = None
 
 
 class BatchAnalyzeResponse(BaseModel):

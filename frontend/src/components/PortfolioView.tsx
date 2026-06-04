@@ -1,6 +1,6 @@
 import type { UserFundItem, BatchFundResult } from '../types'
 import { EditField } from './common'
-import { PortfolioSummaryCard, PortfolioWarningsCard, BatchResultCard } from './PortfolioComponents'
+import { PortfolioSummaryCard, PortfolioWarningsCard, BatchResultCard, sortBatchResultsByPriority } from './PortfolioComponents'
 
 interface PortfolioViewProps {
   myFunds: UserFundItem[]
@@ -153,7 +153,7 @@ export function PortfolioView({
               <PortfolioSummaryCard batchResults={batchResults} myFunds={myFunds} />
               <PortfolioWarningsCard batchResults={batchResults} myFunds={myFunds} />
               <h4 className="batch-results-title">逐只分析结果</h4>
-              {batchResults.map((r) => (
+              {sortBatchResultsByPriority(batchResults).map((r) => (
                 <BatchResultCard key={r.code} result={r} fundItem={myFunds.find(f => f.code === r.code)} />
               ))}
             </div>

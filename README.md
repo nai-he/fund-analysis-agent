@@ -13,6 +13,7 @@
 - 宏观因素参考（全球指数、汇率、商品）
 - 个人持仓管理（成本价、定投、风险偏好），个性化分析
 - 回测验证：历史方向准确率、Brier 分数、概率校准、基线对比
+- 上涨概率验证：1/3/7/30 天“涨 / 不涨”二分类概率、历史命中率、基线对比和置信度
 - 走势情景分析：1/3/7/30 天概率化情景判断
 - LLM 中文分析总结（偏积极 / 中性 / 偏谨慎 / 风险较高）
 - LLM 不可用时自动回退到规则化分析
@@ -45,12 +46,16 @@ gold/
 │   ├── scoring.py               # 评分逻辑
 │   ├── forecast_engine.py       # 走势情景分析引擎
 │   ├── backtest_engine.py       # 回测验证引擎
+│   ├── prediction_engine.py     # 上涨概率二分类预测与验证
+│   ├── decision_advisor.py      # 买卖辅助判断规则
 │   ├── agent.py                 # LLM 分析模块
 │   ├── providers/
 │   │   └── tencent_fund.py      # Tencent 净值估算
 │   ├── requirements.txt
 │   ├── .env.example
 │   ├── test_backtest.py         # 回测模块测试
+│   ├── test_prediction_engine.py # 上涨概率预测测试
+│   ├── test_decision_advisor.py # 决策辅助测试
 │   └── test_my_funds.py         # 持仓模块测试
 ├── frontend/
 │   ├── src/
@@ -136,6 +141,7 @@ npm run dev
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | GET | `/api/health` | 健康检查 |
+| GET | `/api/macro` | 获取宏观一览数据 |
 | GET | `/api/analyze?code=161725` | 分析单只基金 |
 | POST | `/api/analyze` | 分析单只基金（可附带持仓信息） |
 | GET | `/api/my-funds` | 获取个人基金列表 |

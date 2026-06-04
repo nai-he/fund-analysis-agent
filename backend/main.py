@@ -12,7 +12,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 from schemas import (
-    PositionInput, AnalyzeRequest, AnalyzeResponse,
+    PositionInput, AnalyzeRequest, AnalyzeResponse, MacroResponse,
     UserFundInput, UserFundItem, BatchFundResult, BatchAnalyzeResponse,
 )
 from storage import load_user_funds, save_user_funds, validate_fund_code
@@ -26,6 +26,10 @@ from forecast_engine import generate_forecast
 from agent import analyze_with_llm
 from providers.tencent_fund import get_tencent_nav_estimate
 from backtest_engine import run_backtest
+from decision_advisor import build_decision_advice
+from final_decision import build_final_decision
+from high_confidence_filter import build_high_confidence_decision
+from prediction_engine import is_specific_trained_fund
 
 load_dotenv()
 
@@ -80,7 +84,8 @@ def _run_analysis(code: str, position: Optional[dict] = None) -> AnalyzeResponse
     logger.info(f"基金画像: quality={fund_profile.get('data_quality')}")
 
     # Step 3: 获取历史净值数据
-    nav_df = get_fund_nav_history(code, days=120)
+    nav_days = 3650 if is_specific_trained_fund(code) else 120
+    nav_df = get_fund_nav_history(code, days=nav_days)
     if nav_df is None or nav_df.empty:
         return AnalyzeResponse(
             success=False,
@@ -127,6 +132,19 @@ def _run_analysis(code: str, position: Optional[dict] = None) -> AnalyzeResponse
         f"7d={forecast['forecast_7d']['direction']}, 30d={forecast['forecast_30d']['direction']}"
     )
 
+    # Step 6.7: 短线预测（专注1天、3天、7天）
+    from short_term_prediction import short_term_prediction
+    prediction = short_term_prediction(
+        nav_df,
+        fund_code=code,
+        fund_name=fund_info.get("name", ""),
+        fund_type=fund_info.get("type", "")
+    )
+    logger.info(
+        f"短线预测: quality={prediction.get('quality')}, "
+        f"method={prediction.get('model_basis')}"
+    )
+
     # Step 7: 数据源状态
     ds_status = get_datasource_status(code)
 
@@ -138,12 +156,46 @@ def _run_analysis(code: str, position: Optional[dict] = None) -> AnalyzeResponse
         "macro": macro,
         "risk": risk,
         "forecast": forecast,
+        "prediction": prediction,
         "position": position,
     }
 
     # Step 9: LLM 分析
     llm_result = analyze_with_llm(analysis_data)
     logger.info(f"分析结论: {llm_result.get('conclusion')}")
+
+    # Step 10: 规则化买卖决策辅助
+    decision_advice = build_decision_advice(
+        fund=fund_info,
+        metrics=metrics,
+        risk=risk,
+        forecast=forecast,
+        position=position,
+    )
+    logger.info(f"决策建议: action={decision_advice.get('action')}, confidence={decision_advice.get('confidence')}")
+
+    # Step 11: 最终结论聚合
+    final_decision = build_final_decision(
+        fund=fund_info,
+        risk=risk,
+        forecast=forecast,
+        prediction=prediction,
+        decision_advice=decision_advice,
+        position=position,
+    )
+    logger.info(f"最终结论: direction={final_decision.get('direction')}, action={final_decision.get('action')}")
+
+    # Step 12: 高置信度小资金决策
+    high_confidence_decision = build_high_confidence_decision(
+        fund=fund_info,
+        metrics=metrics,
+        risk=risk,
+        forecast=forecast,
+        prediction=prediction,
+        backtest=backtest_result,
+        position=position,
+    )
+    logger.info(f"高置信度决策: action={high_confidence_decision.get('action')}, confidence={high_confidence_decision.get('confidence')}")
 
     return AnalyzeResponse(
         success=True,
@@ -154,8 +206,12 @@ def _run_analysis(code: str, position: Optional[dict] = None) -> AnalyzeResponse
         macro=macro,
         risk=risk,
         forecast=forecast,
+        prediction=prediction,
         analysis=llm_result,
         datasource_status=ds_status,
+        decision_advice=decision_advice,
+        final_decision=final_decision,
+        high_confidence_decision=high_confidence_decision,
     )
 
 
@@ -184,6 +240,20 @@ async def analyze_fund_post(request: AnalyzeRequest):
 async def health_check():
     """健康检查"""
     return {"status": "ok", "service": "基金决策辅助分析", "version": "2.0.0"}
+
+
+@app.get("/api/macro", response_model=MacroResponse)
+async def get_macro():
+    """
+    获取宏观一览数据（全球指数、汇率、商品、SHIBOR）
+    轻量接口，不依赖基金代码，不运行完整分析流程
+    """
+    try:
+        macro = get_macro_factors()
+        return MacroResponse(success=True, macro=macro)
+    except Exception as e:
+        logger.error(f"宏观数据获取失败: {e}")
+        return MacroResponse(success=False, macro=None, error=f"宏观数据获取失败：{e}")
 
 
 # === 我的基金 API ===
@@ -263,8 +333,12 @@ async def batch_analyze_my_funds():
                 macro=analysis.macro,
                 risk=analysis.risk,
                 forecast=analysis.forecast,
+                prediction=analysis.prediction,
                 analysis=analysis.analysis,
                 datasource_status=analysis.datasource_status,
+                decision_advice=analysis.decision_advice,
+                final_decision=analysis.final_decision,
+                high_confidence_decision=analysis.high_confidence_decision,
             ))
             logger.info(f"批量分析 {code}: success={analysis.success}")
         except Exception as e:

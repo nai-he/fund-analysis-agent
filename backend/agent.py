@@ -458,7 +458,62 @@ def _build_user_prompt(fund, metrics, macro, fund_profile, risk, forecast, posit
 
 
 def _call_llm(api_key, base_url, model, user_prompt, temperature, max_tokens) -> Optional[Dict[str, Any]]:
-    """调用 LLM（OpenAI SDK），带 response_format 回退"""
+    """调用 LLM，自动检测 Anthropic 或 OpenAI 格式"""
+
+    # 检测是否为 Claude 模型（使用 Anthropic API）
+    if model and 'claude' in model.lower():
+        return _call_anthropic_api(api_key, base_url, model, user_prompt, temperature, max_tokens)
+    else:
+        return _call_openai_api(api_key, base_url, model, user_prompt, temperature, max_tokens)
+
+
+def _call_anthropic_api(api_key, base_url, model, user_prompt, temperature, max_tokens) -> Optional[Dict[str, Any]]:
+    """调用 Anthropic Messages API（使用直接 HTTP 请求以避免 SDK 兼容性问题）"""
+    try:
+        import requests
+
+        url = f"{base_url}/v1/messages"
+        headers = {
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+        }
+        payload = {
+            "model": model,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            "system": SYSTEM_PROMPT,
+            "messages": [
+                {"role": "user", "content": user_prompt + "\n\n请严格按 JSON 格式输出，不要输出其他内容。"}
+            ]
+        }
+
+        response = requests.post(url, headers=headers, json=payload, timeout=120)
+
+        if response.status_code != 200:
+            logger.error(f"Anthropic API 返回错误: {response.status_code} - {response.text[:200]}")
+            return None
+
+        result = response.json()
+        content = result["content"][0]["text"]
+        logger.info(f"Anthropic API 调用成功: {content[:200]}...")
+
+        # 提取 JSON
+        content = content.strip()
+        if content.startswith("```"):
+            lines = content.split("\n")
+            content = "\n".join(lines[1:]) if len(lines) > 1 else content
+            if content.endswith("```"):
+                content = content[:-3]
+
+        return json.loads(content)
+    except Exception as e:
+        logger.error(f"Anthropic API 调用失败: {e}")
+        return None
+
+
+def _call_openai_api(api_key, base_url, model, user_prompt, temperature, max_tokens) -> Optional[Dict[str, Any]]:
+    """调用 OpenAI 兼容 API"""
     from openai import OpenAI
 
     client = OpenAI(api_key=api_key, base_url=base_url)
@@ -476,7 +531,7 @@ def _call_llm(api_key, base_url, model, user_prompt, temperature, max_tokens) ->
             response_format={"type": "json_object"},
         )
         content = response.choices[0].message.content
-        logger.info(f"LLM 分析完成: {content[:200]}...")
+        logger.info(f"OpenAI API 调用成功: {content[:200]}...")
         return json.loads(content)
     except Exception as e1:
         logger.warning(f"response_format=json_object 失败: {e1}，尝试去掉 response_format 重试")
@@ -493,7 +548,7 @@ def _call_llm(api_key, base_url, model, user_prompt, temperature, max_tokens) ->
             max_tokens=max_tokens,
         )
         content = response.choices[0].message.content
-        logger.info(f"LLM 重试完成: {content[:200]}...")
+        logger.info(f"OpenAI API 重试完成: {content[:200]}...")
         # 尝试提取 JSON
         content = content.strip()
         if content.startswith("```"):
@@ -503,7 +558,7 @@ def _call_llm(api_key, base_url, model, user_prompt, temperature, max_tokens) ->
                 content = content[:-3]
         return json.loads(content)
     except Exception as e2:
-        logger.error(f"LLM 调用两次均失败: {e2}")
+        logger.error(f"OpenAI API 调用两次均失败: {e2}")
         return None
 
 

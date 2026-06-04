@@ -1,46 +1,52 @@
-import { useState } from 'react'
-import type { Macro, AnalyzeResult } from '../types'
+import { useState, useEffect } from 'react'
+import type { Macro, MacroResponse } from '../types'
 import { fmtNum } from '../utils/format'
 
 export function MarketDashboard() {
   const [loading, setLoading] = useState(false)
   const [macro, setMacro] = useState<Macro | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [benchCode, setBenchCode] = useState('510300')
-  const [customCode, setCustomCode] = useState('')
 
-  const fetchMacro = async (code: string) => {
+  const fetchMacro = async () => {
     setLoading(true)
     setError(null)
+
+    const controller = new AbortController()
+    const timer = window.setTimeout(() => controller.abort(), 15000)
+
     try {
-      const resp = await fetch(`/api/analyze?code=${encodeURIComponent(code)}`)
-      const data: AnalyzeResult = await resp.json()
+      const resp = await fetch('/api/macro', { signal: controller.signal })
+      const data: MacroResponse = await resp.json().catch(() => ({
+        success: false,
+        error: `请求失败 (${resp.status})`,
+      }))
+
       if (!resp.ok || !data.success) {
-        setError(data.error || '获取宏观数据失败')
-      } else {
-        setMacro(data.macro || null)
-        if (!data.macro || data.macro.status === 'unavailable') {
-          setError('当前宏观数据源暂不可用')
-        }
+        setError(data.error || `宏观数据获取失败 (${resp.status})`)
+        setMacro(null)
+        return
+      }
+
+      setMacro(data.macro || null)
+      if (!data.macro || data.macro.status === 'unavailable') {
+        setError('当前宏观数据源暂不可用')
       }
     } catch (e) {
-      setError(`网络请求失败：${e instanceof Error ? e.message : '未知错误'}`)
+      setError(
+        e instanceof DOMException && e.name === 'AbortError'
+          ? '宏观数据请求超时，请稍后重试'
+          : `网络请求失败：${e instanceof Error ? e.message : '未知错误'}。请确认后端服务已启动。`
+      )
+      setMacro(null)
     } finally {
+      window.clearTimeout(timer)
       setLoading(false)
     }
   }
 
-  const handleRefresh = () => {
-    const code = customCode.trim() || benchCode
-    if (code) fetchMacro(code)
-  }
-
-  // 首次进入自动获取
-  const [fetched, setFetched] = useState(false)
-  if (!fetched) {
-    setFetched(true)
-    setTimeout(() => fetchMacro(benchCode), 100)
-  }
+  useEffect(() => {
+    fetchMacro()
+  }, [])
 
   const macroSummary = macro?.macro_summary
   const riskAppetiteLabel: Record<string, string> = { 'risk-on': '风险偏好上升', 'risk-off': '风险偏好下降', 'neutral': '中性' }
@@ -52,26 +58,11 @@ export function MarketDashboard() {
       {/* 控制栏 */}
       <div className="market-controls">
         <div className="market-controls-row">
-          <select className="market-bench-select" value={benchCode} onChange={(e) => setBenchCode(e.target.value)}>
-            <option value="510300">沪深300ETF (510300)</option>
-            <option value="510050">上证50ETF (510050)</option>
-            <option value="159915">创业板ETF (159915)</option>
-            <option value="161725">白酒LOF (161725)</option>
-            <option value="161128">标普科技QDII (161128)</option>
-          </select>
-          <input
-            type="text"
-            className="market-custom-input"
-            placeholder="或输入其他基金代码"
-            value={customCode}
-            onChange={(e) => setCustomCode(e.target.value)}
-            maxLength={6}
-          />
-          <button className="market-refresh-btn" onClick={handleRefresh} disabled={loading}>
+          <button className="market-refresh-btn" onClick={fetchMacro} disabled={loading}>
             {loading ? '加载中...' : '刷新宏观数据'}
           </button>
         </div>
-        <p className="market-hint">选择一个基准基金或输入代码以获取其关联的宏观数据（全球指数、汇率、商品、利率基于后端实时获取）</p>
+        <p className="market-hint">点击刷新获取全球市场宏观数据概览（全球指数、汇率、商品、SHIBOR利率），无需指定基金代码</p>
       </div>
 
       {error && <div className="error-banner"><span className="error-icon">!</span><span>{error}</span></div>}
@@ -83,7 +74,7 @@ export function MarketDashboard() {
         </div>
       )}
 
-      {macro && macro.status !== 'unavailable' && (
+      {!loading && macro && macro.status !== 'unavailable' && (
         <div className="market-content">
           {/* 宏观摘要 */}
           <div className="card market-summary-card">

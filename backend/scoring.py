@@ -212,24 +212,45 @@ def score_from_indicators(
     up_triggers: List[str] = []
     down_triggers: List[str] = []
 
-    # 1. 趋势因子
+    # 1. 趋势因子（降低权重，防止追高）
     if period == 1:
-        trend_weight = 0.55
+        trend_weight = 0.4  # 降低短期趋势权重
     elif period == 3:
-        trend_weight = 0.75
+        trend_weight = 0.55
     else:
-        trend_weight = 1.0
+        trend_weight = 0.75  # 降低长期趋势权重
 
+    # 增加反转逻辑：多头排列但RSI超买 → 降低评分
     if "多头排列" in str(trend) or "上升" in str(trend):
-        score += 30 * trend_weight
-        reasons.append("均线多头排列，趋势偏强")
-        up_triggers.append("均线多头排列持续，且未出现高位放量滞涨")
+        base_score = 30 * trend_weight
+        # 防追高：RSI超买时降低评分
+        if rsi_14 > 70:
+            base_score *= 0.3  # 大幅降低
+            reasons.append("均线多头但RSI超买，追高风险大")
+            down_triggers.append("RSI超买后回调风险")
+        elif rsi_14 > 60:
+            base_score *= 0.6
+            reasons.append("均线多头但RSI偏高，谨慎追涨")
+        else:
+            reasons.append("均线多头排列，趋势偏强")
+            up_triggers.append("均线多头排列持续，且未出现高位放量滞涨")
+        score += base_score
         down_triggers.append("均线出现死叉，或跌破60日均线支撑")
     elif "空头排列" in str(trend) or "下降" in str(trend):
-        score -= 35 * trend_weight
-        reasons.append("均线空头排列，趋势偏弱")
+        base_score = -35 * trend_weight
+        # 反转机会：RSI超卖时降低负面评分
+        if rsi_14 < 30:
+            base_score *= 0.4  # 超卖反弹机会
+            reasons.append("均线空头但RSI超卖，可能反弹")
+            up_triggers.append("RSI超卖后反弹机会")
+        elif rsi_14 < 40:
+            base_score *= 0.7
+            reasons.append("均线空头但RSI偏低，关注反弹")
+        else:
+            reasons.append("均线空头排列，趋势偏弱")
+            down_triggers.append("空头排列延续，继续创新低")
+        score += base_score
         up_triggers.append("出现放量反弹且站上20日均线，均线开始走平")
-        down_triggers.append("空头排列延续，继续创新低")
     elif "偏多" in str(trend):
         score += 15 * trend_weight
         reasons.append("均线偏多震荡")
@@ -252,10 +273,16 @@ def score_from_indicators(
     for days, ret_val in period_returns:
         if days <= 5:
             if ret_val > 2.5:
-                score += 12
-                reasons.append(f"近{days}个交易日涨幅较强({ret_val}%)，短线动能偏强")
-                up_triggers.append(f"近{days}个交易日动能延续且回撤不扩大")
-                down_triggers.append("短线快速上涨后出现回吐，需防止冲高回落")
+                # 短期大涨后，检查是否超买
+                if rsi_14 > 65 or pos_30d > 80:
+                    score += 4  # 大幅降低评分，防追高
+                    reasons.append(f"近{days}个交易日涨幅较强({ret_val}%)但已高位，追高风险")
+                    down_triggers.append("短期大涨后高位回调风险")
+                else:
+                    score += 12
+                    reasons.append(f"近{days}个交易日涨幅较强({ret_val}%)，短线动能偏强")
+                    up_triggers.append(f"近{days}个交易日动能延续且回撤不扩大")
+                    down_triggers.append("短线快速上涨后出现回吐，需防止冲高回落")
             elif ret_val > 1:
                 score += 7
             elif ret_val > 0:
@@ -266,13 +293,24 @@ def score_from_indicators(
                 score -= 8
                 reasons.append(f"近{days}个交易日下跌({ret_val}%)")
             else:
-                score -= 14
-                reasons.append(f"近{days}个交易日跌幅较大({ret_val}%)，短线承压")
-                down_triggers.append("短线跌势未止，继续跌破前低")
+                # 短期大跌后，检查是否超卖
+                if rsi_14 < 35 or pos_30d < 20:
+                    score -= 6  # 降低负面评分，反弹机会
+                    reasons.append(f"近{days}个交易日跌幅较大({ret_val}%)但已超卖，关注反弹")
+                    up_triggers.append("超卖反弹机会")
+                else:
+                    score -= 14
+                    reasons.append(f"近{days}个交易日跌幅较大({ret_val}%)，短线承压")
+                    down_triggers.append("短线跌势未止，继续跌破前低")
         elif ret_val > 10:
-            score += 12
-            reasons.append(f"近{days}天涨幅较大({ret_val}%)，短期动能强")
-            up_triggers.append(f"近{days}天涨幅延续且成交量配合")
+            # 中期大涨，检查位置
+            if pos_60d > 85 or rsi_14 > 70:
+                score += 4  # 高位谨慎
+                reasons.append(f"近{days}天涨幅较大({ret_val}%)但已高位")
+            else:
+                score += 12
+                reasons.append(f"近{days}天涨幅较大({ret_val}%)，短期动能强")
+                up_triggers.append(f"近{days}天涨幅延续且成交量配合")
             down_triggers.append(f"近{days}天涨幅过快后出现高位放量回落")
         elif ret_val > 5:
             score += 8
@@ -284,8 +322,13 @@ def score_from_indicators(
             score -= 10
             reasons.append(f"近{days}天下跌({ret_val}%)")
         elif ret_val > -15:
-            score -= 18
-            reasons.append(f"近{days}天跌幅较大({ret_val}%)")
+            # 中期大跌，检查是否超卖
+            if pos_60d < 25 or rsi_14 < 35:
+                score -= 8  # 降低负面评分
+                reasons.append(f"近{days}天跌幅较大({ret_val}%)但已低位，关注反弹")
+            else:
+                score -= 18
+                reasons.append(f"近{days}天跌幅较大({ret_val}%)")
         else:
             score -= 25
             reasons.append(f"近{days}天跌幅显著({ret_val}%)，下行压力大")

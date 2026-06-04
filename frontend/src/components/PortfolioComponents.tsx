@@ -1,11 +1,66 @@
 import type { BatchFundResult, UserFundItem } from '../types'
 import { riskColor, batchActionColor, directionColor, directionLabel } from '../utils/format'
 
+type FinalAction = 'buy_watch' | 'hold' | 'reduce' | 'avoid' | 'observe'
+
+const FINAL_ACTION_PRIORITY: Record<FinalAction, number> = {
+  reduce: 0,
+  avoid: 1,
+  observe: 2,
+  hold: 3,
+  buy_watch: 4,
+}
+
+function getFinalAction(result: BatchFundResult): FinalAction {
+  return (result.final_decision?.action as FinalAction) || 'observe'
+}
+
+function getActionCountMap(batchResults: BatchFundResult[]) {
+  const counts = {
+    reduce: 0,
+    avoid: 0,
+    observe: 0,
+    hold: 0,
+    buy_watch: 0,
+    unknown: 0,
+  }
+
+  for (const result of batchResults) {
+    if (!result.success) continue
+    const action = result.final_decision?.action as FinalAction | undefined
+    if (!action || !(action in counts)) {
+      counts.unknown += 1
+      continue
+    }
+    counts[action] += 1
+  }
+
+  return counts
+}
+
+export function sortBatchResultsByPriority(batchResults: BatchFundResult[]) {
+  return [...batchResults].sort((a, b) => {
+    const actionA = getFinalAction(a)
+    const actionB = getFinalAction(b)
+    const priorityA = FINAL_ACTION_PRIORITY[actionA] ?? 99
+    const priorityB = FINAL_ACTION_PRIORITY[actionB] ?? 99
+    if (priorityA !== priorityB) return priorityA - priorityB
+
+    const riskA = a.risk?.risk_score ?? 0
+    const riskB = b.risk?.risk_score ?? 0
+    if (riskA !== riskB) return riskB - riskA
+
+    return a.code.localeCompare(b.code)
+  })
+}
+
 export function PortfolioSummaryCard({ batchResults, myFunds }: { batchResults: BatchFundResult[]; myFunds: UserFundItem[] }) {
   const totalFunds = myFunds.length
   const successResults = batchResults.filter(r => r.success)
   const successCount = successResults.length
   const failCount = batchResults.length - successCount
+  const actionCounts = getActionCountMap(successResults)
+  const knownActionCount = actionCounts.reduce + actionCounts.avoid + actionCounts.observe + actionCounts.hold + actionCounts.buy_watch
 
   // 总持有金额
   const totalHolding = myFunds.reduce((sum, f) => sum + (f.holding_amount || 0), 0)
@@ -92,6 +147,31 @@ export function PortfolioSummaryCard({ batchResults, myFunds }: { batchResults: 
           </span>
         </div>
       </div>
+
+      <div className="portfolio-action-summary">
+        <span className="portfolio-action-summary-label">行动分布</span>
+        <div className="portfolio-action-pill-row">
+          <span className={`portfolio-action-pill pill-reduce ${actionCounts.reduce === 0 ? 'pill-muted' : ''}`}>
+            降低仓位 {actionCounts.reduce}
+          </span>
+          <span className={`portfolio-action-pill pill-avoid ${actionCounts.avoid === 0 ? 'pill-muted' : ''}`}>
+            暂不参与 {actionCounts.avoid}
+          </span>
+          <span className={`portfolio-action-pill pill-observe ${actionCounts.observe === 0 ? 'pill-muted' : ''}`}>
+            观察 {actionCounts.observe}
+          </span>
+          <span className={`portfolio-action-pill pill-hold ${actionCounts.hold === 0 ? 'pill-muted' : ''}`}>
+            继续持有 {actionCounts.hold}
+          </span>
+          <span className={`portfolio-action-pill pill-buy ${actionCounts.buy_watch === 0 ? 'pill-muted' : ''}`}>
+            可小额关注 {actionCounts.buy_watch}
+          </span>
+        </div>
+        <p className="portfolio-action-note">
+          先处理降低仓位/暂不参与，再看观望和继续持有，最后看可小额关注。
+          {knownActionCount < successCount ? ` 另有 ${successCount - knownActionCount} 只结果暂未给出最终结论。` : ''}
+        </p>
+      </div>
     </div>
   )
 }
@@ -99,11 +179,22 @@ export function PortfolioSummaryCard({ batchResults, myFunds }: { batchResults: 
 export function PortfolioWarningsCard({ batchResults, myFunds }: { batchResults: BatchFundResult[]; myFunds: UserFundItem[] }) {
   const warnings: string[] = []
   const successResults = batchResults.filter(r => r.success)
+  const actionCounts = getActionCountMap(successResults)
+  const opportunityCount = actionCounts.buy_watch
 
   // 1. 高风险占比过高
   const highRiskCount = successResults.filter(r => (r.risk?.risk_score || 0) > 70).length
   if (highRiskCount > 0 && successResults.length > 0 && highRiskCount / successResults.length > 0.3) {
     warnings.push(`组合中有 ${highRiskCount} 只基金风险评分较高（>70），占比 ${(highRiskCount / successResults.length * 100).toFixed(0)}%，建议关注整体风险敞口。`)
+  }
+
+  // 1.5 优先级提示
+  const priorityCount = actionCounts.reduce + actionCounts.avoid
+  if (priorityCount > 0) {
+    warnings.push(`${priorityCount} 只基金当前更适合先降低仓位或暂不参与，建议优先处理这部分。`)
+  }
+  if (opportunityCount > 0) {
+    warnings.push(`${opportunityCount} 只基金可列为小额关注候选，但仍建议先确认大方向和风险状态。`)
   }
 
   // 2. 多数基金回测质量偏低
@@ -171,8 +262,10 @@ export function BatchResultCard({ result: r, fundItem }: { result: BatchFundResu
   const forecast = r.forecast
   const ds = forecast?.decision_support
   const validation = forecast?.validation
+  const prediction7d = r.prediction?.periods?.['7d']
   const metrics = r.metrics
   const fund = r.fund
+  const finalDecision = r.final_decision
 
   // 计算持仓盈亏
   let pnlText = ''
@@ -203,6 +296,30 @@ export function BatchResultCard({ result: r, fundItem }: { result: BatchFundResu
         )}
       </div>
 
+      {finalDecision && (
+        <div className="batch-decision-brief">
+          <div className="batch-decision-brief-top">
+            <span className="batch-decision-headline">{finalDecision.headline || '暂无最终结论'}</span>
+            <span className={`batch-decision-pill batch-decision-${finalDecision.action || 'observe'}`}>
+              {finalDecision.action_label || '观察'}
+            </span>
+          </div>
+          <div className="batch-decision-brief-meta">
+            <span>{finalDecision.direction_label || '不确定'}</span>
+            <span>置信度：{finalDecision.confidence || '中'}</span>
+            {finalDecision.risk_score != null && (
+              <span>风险分 {finalDecision.risk_score}</span>
+            )}
+          </div>
+          {finalDecision.why && finalDecision.why.length > 0 && (
+            <p className="batch-decision-why">{finalDecision.why[0]}</p>
+          )}
+          {finalDecision.warning && finalDecision.warning.length > 0 && (
+            <p className="batch-decision-warning">⚠ {finalDecision.warning[0]}</p>
+          )}
+        </div>
+      )}
+
       <div className="batch-card-body">
         {/* 风险评分 */}
         {risk && (
@@ -222,15 +339,24 @@ export function BatchResultCard({ result: r, fundItem }: { result: BatchFundResu
 
         {/* 操作倾向 + 预测 */}
         <div className="batch-insight-row">
-          {ds?.action_bias && (
-            <span className="batch-action-bias" style={{ color: batchActionColor(ds.action_bias) }}>
-              操作倾向：{ds.action_bias}
-            </span>
+          {!finalDecision && (
+            <>
+              {ds?.action_bias && (
+                <span className="batch-action-bias" style={{ color: batchActionColor(ds.action_bias) }}>
+                  操作倾向：{ds.action_bias}
+                </span>
+              )}
+            </>
           )}
           <span className="batch-forecast-short">
             7d <span style={{ color: directionColor(forecast?.forecast_7d?.direction) }}>{directionLabel(forecast?.forecast_7d?.direction)}</span>
             {' '}30d <span style={{ color: directionColor(forecast?.forecast_30d?.direction) }}>{directionLabel(forecast?.forecast_30d?.direction)}</span>
           </span>
+          {prediction7d && (
+            <span className={`batch-prediction-short ${prediction7d.has_positive_edge ? 'prediction-edge-positive' : 'prediction-edge-neutral'}`}>
+              涨率 {prediction7d.up_probability ?? 'N/A'}% · {prediction7d.direction_label || '不确定'}
+            </span>
+          )}
         </div>
 
         {/* 回测概率质量 */}
