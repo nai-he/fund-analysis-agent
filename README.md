@@ -4,6 +4,20 @@
 
 > **免责声明：本工具仅用于个人学习研究，不构成任何投资建议。基金投资有风险，过往业绩不预示未来表现。使用者应独立做出投资决策并承担相应风险。**
 
+## 界面预览
+
+### 基金分析 - 初始界面
+![分析初始界面](docs/screenshots/01-analyze-initial.png)
+
+### 基金分析 - 结果展示
+![分析结果](docs/screenshots/02-analyze-result.png)
+
+### 个人持仓管理
+![持仓管理](docs/screenshots/03-portfolio.png)
+
+### 宏观市场仪表盘
+![宏观仪表盘](docs/screenshots/04-macro-dashboard.png)
+
 ## 功能亮点
 
 - 基金代码自动识别基金名称、类型、基金公司
