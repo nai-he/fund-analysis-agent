@@ -266,7 +266,6 @@ LLM 分析为可选模块。不配置 `LLM_API_KEY` 时：
 
 - [架构文档](docs/architecture.md) — 前后端架构、数据流、模块职责
 - [API 文档](docs/api.md) — 全部接口的参数和响应示例
-- [面试准备笔记](docs/interview-notes.md) — 项目背景、技术难点、问答准备
 - [示例响应](docs/demo-response.json) — 离线查看完整 API 响应结构
 
 ## License
